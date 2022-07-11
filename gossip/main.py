@@ -1,5 +1,8 @@
 import sys, logging, os
 from config_parser import parse_config
+from server import ServerThread
+
+logging.basicConfig(level=logging.DEBUG)
 
 def main():
     logging.debug('Starting Gossip')
@@ -26,6 +29,10 @@ def main():
     config=parse_config(config_path)
 
     # TODO do some other stuff
+    apiserverthread = ServerThread("API", "localhost", 8888)
+    apiserverthread.start()
+
+    apiserverthread.join()
 
     logging.debug('Exiting Gossip')
 

@@ -1,12 +1,7 @@
 # List of APIs that can be used to communicate with the module
 
 import struct
-
-GOSSIP_ANNOUNCE = 500
-GOSSIP_NOTIFY = 501
-GOSSIP_NOTIFICATION = 502
-GOSSIP_VALIDATION = 503
-
+import codes as c
 
 def announce(message: bytes):
     size, msg_type, ttl, res, data_type = struct.unpack(">HHBBH", message[:8])
@@ -33,7 +28,7 @@ def notification() -> bytes:
     data = b"mydata"
     size = 8 + len(data)
 
-    message = struct.pack(">HHHH", size, GOSSIP_NOTIFICATION, msg_id, data_type)
+    message = struct.pack(">HHHH", size, c.GOSSIP_NOTIFICATION, msg_id, data_type)
     message += data
 
     # TODO need to check for well-formedness of data
@@ -59,9 +54,9 @@ def validation(message: bytes):
 
 def identify_msg_type(message: bytes):
     message_type = int.from_bytes(message[2:4], byteorder='big')
-    if message_type == GOSSIP_ANNOUNCE:
+    if message_type == c.GOSSIP_ANNOUNCE:
         announce(message)
-    elif message_type == GOSSIP_NOTIFY:
+    elif message_type == c.GOSSIP_NOTIFY:
         notify(message)
-    elif message_type == GOSSIP_VALIDATION:
+    elif message_type == c.GOSSIP_VALIDATION:
         validation(message)
