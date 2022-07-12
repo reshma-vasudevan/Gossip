@@ -1,0 +1,37 @@
+Midterm report
+
+We have not yet spent a lot of time on the project since we both didn't have much time. We will do the majority of the work in the coming two months. Because of this, this midterm report is rather sparse. We hope that is ok.
+
+1. Changes to assumptions
+i. no changes as language and OS have good support and rest are to be used
+ii. Addition of libraries like
+- ini-parser
+
+2. Architecture
+i. Logical structure: classes (Message, MessageStorage)
+- The servers which listens to API/P2P connections are implemented as classes which inherent from thread which then spawn new threads for each connection
+ii. Process Architecture:
+- threading: built-in threading module
+iii. Networking:
+- socket: built-in socket module
+iv. Security measures:
+- none so far
+
+3. Peer-to-peer protocol:
+At this time we have not started to work on the actual P2P protocol.
+i. Message format: same as in document
+ii. Reasoning:
+iii. Exception handling:
+
+4. Future work:
+- New node additions
+- Security attacks
+- Implement the bulk of the program
+
+5. Workload Distribution:
+i. Nicolas: Structure for the program to run (server/request handler thread classes, main), config parsing, exceptions
+ii. Reshma: API conformity, storage for messages
+
+6.Effort spent:
+i. Nicolas: < ~10h
+ii. Reshma: ~12h
