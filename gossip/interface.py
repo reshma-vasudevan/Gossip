@@ -1,4 +1,4 @@
-# List of APIs that can be used to communicate with the module
+# Verifying API conformity with phone test module
 
 import struct
 import codes as c
