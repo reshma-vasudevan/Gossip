@@ -1,8 +1,20 @@
 # Deals with cache to store announced Data and subscribers to data types
 from collections import defaultdict
+from random import randint
 
 
-class MessageStorage():
+class MessageStorage:
+    """
+    Class to maintain a storage for messages.
+
+    Attributes:
+        data_types: Stores message ids of all announced messages of given data_type
+            dict of list, index: data_type, value: list of message ids
+        messages: Stores message info of given message_id
+            dict of dict, index: message id, value of format: {"message":message, "ttl": ttl, "valid":0}
+        subscribers: Stores list of subscribers to given data_type
+            dict of list, index: data_type, value: list of subscribers
+    """
     def __init__(self):
         self.data_types = defaultdict(list)
         self.messages = {}
@@ -12,6 +24,7 @@ class MessageStorage():
         msg_id = self.get_random_msg_id()
         self.data_types[data_type].append(msg_id)
         self.messages[msg_id] = {"message":data, "ttl": ttl, "valid":0}
+        return msg_id
 
     def add_subscriber(self, data_type, subscriber):
         self.subscribers[data_type].append(subscriber)
@@ -23,25 +36,10 @@ class MessageStorage():
         return self.subscribers[data_type]
 
     def get_random_msg_id(self):
-        pass
+        r = randint(0, 100)
+        while r in self.messages.keys():
+            r = randint(0, 100)
+        return r
 
-    def update_validity(self):
-        pass
-
-
-if __name__ == '__main__':
-    # Testing the class
-    message_storage = MessageStorage()
-    message_storage.add_data("conn", "New connection found", 2)
-    message_storage.add_data("conn", "Old connection", 3)
-    msg_ids = message_storage.get_message_ids("conn")
-    for id in msg_ids:
-        msg = message_storage.messages[id]
-        print("Message:", msg["message"], "ttl:", msg["ttl"], "validity:", msg["valid"])
-    message_storage.add_subscriber("conn", "res1")
-    message_storage.add_subscriber("conn", "res5")
-    subs = message_storage.get_subscribers("conn")
-    if subs is not None:
-        print("Type is valid and subscribers are : ")
-        for sub in subs:
-            print(sub)
+    def make_invalid(self, msg_id):
+        self.messages[msg_id]["valid"] = False

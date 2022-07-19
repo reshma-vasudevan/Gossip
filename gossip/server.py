@@ -1,6 +1,5 @@
 import socket, logging
 from threading import Thread
-from interface import identify_msg_type, notification
 import exceptions as e
 import codes as c
 
