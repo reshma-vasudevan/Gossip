@@ -1,8 +1,8 @@
 import socket, logging
 from threading import Thread, Lock
-import exceptions as e
-import codes as c
-from message import *
+import gossip.exceptions as e
+import gossip.codes as c
+from gossip.message import *
 
 class ServerThread(Thread):
     """Server thread for the API. Accepts connections and creates new API client threads.

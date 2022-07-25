@@ -1,9 +1,9 @@
 import sys, logging, os
-from config_parser import parse_config
-from server import ServerThread
+from gossip.config_parser import parse_config
+from gossip.server import ServerThread
 import queue
-from message_handler import AnnounceMessageHandler
-from message_storage import MessageStorage
+from gossip.message_handler import AnnounceMessageHandler
+from gossip.message_storage import MessageStorage
 
 logging.basicConfig(level=logging.DEBUG)
 

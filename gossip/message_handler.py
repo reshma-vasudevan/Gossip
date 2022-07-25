@@ -1,5 +1,5 @@
 # Handles received announce messages and creates threads to send corresp. notification messages
-from message import *
+from gossip.message import *
 from threading import Thread, Lock
 import socket
 
