@@ -1,37 +1,128 @@
 Midterm report
 
-We have not yet spent a lot of time on the project since we both didn't have much time. We will do the majority of the work in the coming two months. Because of this, this midterm report is rather sparse. We hope that is ok.
-
 1. Changes to assumptions
 i. no changes as language and OS have good support and rest are to be used
 ii. Addition of libraries like
-- ini-parser
+- ini-parser, queue
 
 2. Architecture
-i. Logical structure: classes (Message, MessageStorage)
-- The servers which listens to API/P2P connections are implemented as classes which inherent from thread which then spawn new threads for each connection
+i. Logical structure:
+    classes :
+    Message classes to handle each type of API message
+    MessageStorage class to handle the cache for announced messages and subscribers
+    ServerThread and client threads, inheriting from thread, handle creation of API/P2P server and their received connections
+    AnnounceMessageHandler class, inheriting from thread, to act on received announce messages
+    NotifThread class, inheriting from thread, to propagate notification messages
+
 ii. Process Architecture:
 - threading: built-in threading module
+API process architecture:
+                            queue, connections
+            ServerThread      ----------->       AnnounceMessageHandler
+           /         \                              /             \
+          /           \                            /               \
+         /             \                          /                 \
+APIClientThread1 ... APIClientThreadn       NotifThread1  .....   NotifThreadm
+
+
+Main Server thread is started which creates and holds a server depending on whether server type is API or P2P.
+When client connection is received, new APIClientThread is spawned for API connections and received messages are processed.
+Another thread, AnnounceMessageHandler, is started from main to wait on queue of announced messages and spawn new threads
+for message spreading.
+
+Shared resources between server and messagehandler threads : MessageStorage, announce_message_queue(queue), connections(dict)
+
+On receiving message in a client connection, it is processed and appropriate action is take in the client thread.
+If announce message received, it is added to the message queue. messagehandler retrieves the item from queue
+and spawns threads to send Notification messages to each of the subscribers
+
+Each subscriber thread checks if connection already exists for the subscriber and reuses it to send message. If not,
+new connection is created and message is sent.
+
 iii. Networking:
 - socket: built-in socket module
+socket connections handled by ServerThread using child ClientThreads. Connections are reused when notification message
+needs to be sent else new socket client opened in NotifThread.
+
 iv. Security measures:
 - none so far
 
 3. Peer-to-peer protocol:
-At this time we have not started to work on the actual P2P protocol.
-i. Message format: same as in document
+i. Message format:
+- Header: each message in the p2p protocol starts with a header of the following form (same as in the API protocol):
++----------------+----------------+
+| size (2 bytes) | type (2 bytes) |
++----------------+----------------+
+
+- Pull (type: 505): a node should be able to ask other peers for IDs
++-----------------------------------+
+|                                   |
+| ip (ipv4: 4 bytes, ipv6: 16 bytes)|
+|                                   |
++-----------------------------------+
+|          port (2 bytes)           |
++-----------------------------------+
+
+- Response (type: 506): a node should to be able to answer a pull request, sending it's IDs to the receiver
++-----------------------------------+
+|                                   |
+|               IDs                 |
+|                                   |
++-----------------------------------+
+
+- Push (type: 506): a node should be able to push its IDs to a random peer, also included is it's own ip and port,
+so the receiver knows where the IDs are coming from
++-----------------------------------+
+|                                   |
+| ip (ipv4: 4 bytes, ipv6: 16 bytes)|
+|                                   |
++-----------------------------------+
+|          port (2 bytes)           |
++-----------------------------------+
+|                                   |
+|               IDs                 |
+|                                   |
++-----------------------------------+
+
+Format for IDs:
+IDs should start with the total number of IDs included:
++-----------------------------------+
+|    total ID count (2 bytes)       |
++-----------------------------------+
+And continue with that number of the following:
++-----------------------------------+
+|        counter (2 bytes)          |
++-----------------------------------+
+|                                   |
+| ip (ipv4: 4 bytes, ipv6: 16 bytes)|
+|                                   |
++-----------------------------------+
+|          port (2 bytes)           |
++-----------------------------------+
+Counter simply counts from 0 up to the number specified in the total ID count
+
 ii. Reasoning:
+We have chosen to go for a push-pull approach. Thus we need three p2p-messages: push, pull and a response to the pull request.
 iii. Exception handling:
+If the IDs of any of the messages are corrupted, i.e. not in the specified format, the message is simply discarded.
+If a connection breaks unexpectedly, any data read from the connection is discarded.
+responseTimeout, if the client takes too long to respond, connection is closed.
+messageLengthExceeded, when the received message is longer than max expected length of 64K, the message is discarded.
 
 4. Future work:
 - New node additions
+- Bootstrap server integration
+- Handling ill-formed API messages
 - Security attacks
-- Implement the bulk of the program
 
 5. Workload Distribution:
-i. Nicolas: Structure for the program to run (server/request handler thread classes, main), config parsing, exceptions
-ii. Reshma: API conformity, storage for messages
+i. Nicolas: Structure for the program to run (server/request handler thread classes, main), config parsing, exceptions,
+            P2P protocol design
+ii. Reshma: API conformity, storage for messages, message and messagestorage classes and related tests,
+            Process architecture design and implementation using thread classes as described,
+            API workflow with sample clients operational
 
 6.Effort spent:
 i. Nicolas: < ~10h
-ii. Reshma: ~12h
+ii. Reshma: API conformity ~3h, design for messages and storage ~2h, defining classes and tests ~4h, process arch design ~5h,
+            process arch impl. ~4h, ensuring working API workflow ~1h

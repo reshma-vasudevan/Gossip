@@ -1,6 +1,9 @@
 import sys, logging, os
 from config_parser import parse_config
 from server import ServerThread
+import queue
+from message_handler import AnnounceMessageHandler
+from message_storage import MessageStorage
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -28,11 +31,19 @@ def main():
     # parse configuration file
     config=parse_config(config_path)
 
-    # TODO do some other stuff
-    apiserverthread = ServerThread("API", "localhost", 8888)
+    # initializing objects
+    message_storage = MessageStorage()
+    q = queue.Queue()
+    connections = {}
+
+    announce_message_handler = AnnounceMessageHandler(q, message_storage, connections)
+    announce_message_handler.start()
+
+    apiserverthread = ServerThread("API", "localhost", 8888, q, message_storage, connections)
     apiserverthread.start()
 
     apiserverthread.join()
+    q.join()
 
     logging.debug('Exiting Gossip')
 
