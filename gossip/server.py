@@ -4,10 +4,13 @@ import gossip.exceptions as e
 import gossip.codes as c
 from gossip.message import *
 
-class ServerThread(Thread):
+
+############################ API ############################
+
+class APIServerThread(Thread):
     """Server thread for the API. Accepts connections and creates new API client threads.
     """
-    def __init__(self, stype, address, port, queue, message_storage, connections):
+    def __init__(self, address, port, queue, message_storage, connections):
         """Constructor.
 
         :param address: address to bind to
@@ -20,32 +23,37 @@ class ServerThread(Thread):
         Thread.__init__(self)
         self.address = address
         self.port = port
-        self.stype = stype
         self.queue = queue
         self.message_storage = message_storage
         self.connections = connections
 
     def run(self):
-        logging.info("Started {} Server at {}:{}" \
-                     .format(self.stype, self.address, self.port))
+        logging.info("Started API Server at {}:{}" \
+                     .format(self.address, self.port))
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.address, self.port))
+
             while True:
                 s.listen(5)
                 (conn, (ip, port)) = s.accept()
                 logging.info("starting client")
-                if self.stype=="API":
-                    c = APIClientThread(conn, self.address, self.port, ip, port, self.queue, self.message_storage,
-                                        self.connections)
-                elif self.stype=="P2P":
-                    c = APIClientThread(conn, self.address, self.port, ip, port)
+                
+                c = APIClientThread(conn,
+                                    self.address,
+                                    self.port,
+                                    ip,
+                                    port,
+                                    self.queue,
+                                    self.message_storage,
+                                    self.connections)
+                
                 logging.info("starting client")
                 c.start()
         except:
-            logging.error("{} server crashed at {}:{}" \
-                          .format(self.stype, self.address, self.port))
+            logging.error("API server crashed at {}:{}" \
+                          .format(self.address, self.port))
 
 class APIClientThread(Thread):
     def __init__(self, connection, ip, port, oip, oport, queue, message_storage, connections):
@@ -81,7 +89,7 @@ class APIClientThread(Thread):
             self.connections[oaddr] = self.connection
         try:
             while True:
-                msg = api_accept(self.connection)
+                msg = parse_header(self.connection)
                 msg_type = msg["type"]
 
                 if msg_type == c.GOSSIP_ANNOUNCE:
@@ -116,7 +124,7 @@ class APIClientThread(Thread):
         logging.info("API Client completed {}:{}" \
                      .format(self.oip, self.oport))
 
-def api_accept(conn):
+def parse_header(conn):
     """Reads from conn and parses header
 
     :param conn: connection to receive from
@@ -140,3 +148,48 @@ def api_accept(conn):
     print(size)
     print(msgtype)
     return {"type": msgtype, "size": size, "data": msg}
+
+
+
+############################ P2P ############################
+
+class P2PServerThread(Thread):
+    """Server thread for P2P. Accepts connections and creates new P2P client threads.
+    """
+    def __init__(self, address, port):
+        """Constructor.
+
+        :param address: address to bind to
+        :param port: port to bind to
+        """
+        Thread.__init__(self)
+        self.address = address
+        self.port = port
+
+    def run(self):
+        logging.info("Started P2P Server at {}:{}" \
+                     .format(self.address, self.port))
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((self.address, self.port))
+
+            while True:
+                s.listen(5)
+                (conn, (ip, port)) = s.accept()
+                logging.info("starting client")
+
+                c = P2PClientThread(conn,
+                                    self.address,
+                                    self.port,
+                                    ip,
+                                    port)
+                
+                logging.info("starting client")
+                c.start()
+        except:
+            logging.error("P2P server crashed at {}:{}" \
+                          .format(self.address, self.port))
+
+
+# TODO: write P2PClientThread

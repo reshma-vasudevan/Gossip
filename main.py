@@ -39,11 +39,30 @@ def main():
     announce_message_handler = AnnounceMessageHandler(q, message_storage, connections)
     announce_message_handler.start()
 
-    apiserverthread = ServerThread("API", "localhost", 8888, q, message_storage, connections)
+    logging.debug('Starting API server thread')
+    apiserverthread = ServerThread("API",
+                                   config['api_adress']['address'],
+                                   config['api_adress']['port'],
+                                   q,
+                                   message_storage,
+                                   connections)
     apiserverthread.start()
 
+    logging.debug('Starting P2P server thread')
+    p2pserverthread = ServerThread("P2P",
+                                   config['api_adress']['address'],
+                                   config['api_adress']['port'])
+    p2pserverthread.start()
+
+
+    # join the threads
+
+    logging.debug('Joining API server thread')
     apiserverthread.join()
     q.join()
+
+    logging.debug('Joining P2P server thread')
+    p2pserverthread.join()
 
     logging.debug('Exiting Gossip')
 
