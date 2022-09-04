@@ -1,11 +1,14 @@
 import sys, logging, os
 from gossip.config_parser import parse_config
-from gossip.server import ServerThread
+from gossip.server import APIServerThread, P2PServerThread
 import queue
 from gossip.message_handler import AnnounceMessageHandler
 from gossip.message_storage import MessageStorage
+from gossip.p2p_message_handler import P2PMessageHandler
+from gossip.p2p_client_handler import P2PClientHandler
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 def main():
     logging.debug('Starting Gossip')
@@ -33,38 +36,60 @@ def main():
 
     # initializing objects
     message_storage = MessageStorage()
-    q = queue.Queue()
-    connections = {}
+    announce_queue = queue.Queue()
+    p2p_queue = queue.Queue()
+    incoming_queue = queue.Queue()
 
-    announce_message_handler = AnnounceMessageHandler(q, message_storage, connections)
+    api_connections = {}
+    p2p_connections = {}
+
+    peer_list = []
+
+    announce_message_handler = AnnounceMessageHandler(announce_queue, message_storage, api_connections, p2p_queue)
     announce_message_handler.start()
 
     logging.debug('Starting API server thread')
-    apiserverthread = ServerThread("API",
-                                   config['api_adress']['address'],
-                                   config['api_adress']['port'],
-                                   q,
+
+    apiserverthread = APIServerThread(
+                                   config['api_address']['address'],
+                                   config['api_address']['port'],
+                                   announce_queue,
                                    message_storage,
-                                   connections)
+                                   api_connections)
+
     apiserverthread.start()
 
+
+    p2p_message_handler = P2PMessageHandler(p2p_queue, p2p_connections, peer_list, incoming_queue)
+    p2p_message_handler.start()
+
     logging.debug('Starting P2P server thread')
-    p2pserverthread = ServerThread("P2P",
-                                   config['api_adress']['address'],
-                                   config['api_adress']['port'])
+    p2pserverthread = P2PServerThread(
+                                   config['p2p_address']['address'],
+                                   config['p2p_address']['port'],
+                                   p2p_connections,
+                                   incoming_queue,
+                                   p2p_queue,
+                                   config['bootstrapper']['address'],
+                                   config['bootstrapper']['port'])
     p2pserverthread.start()
 
+    p2p_client_handler = P2PClientHandler(incoming_queue, peer_list, announce_queue, p2p_queue)
+    p2p_client_handler.start()
 
     # join the threads
 
     logging.debug('Joining API server thread')
     apiserverthread.join()
-    q.join()
+    announce_queue.join()
 
     logging.debug('Joining P2P server thread')
     p2pserverthread.join()
+    p2p_queue.join()
+    incoming_queue.join()
 
     logging.debug('Exiting Gossip')
+
 
 if __name__ == '__main__':
     main()

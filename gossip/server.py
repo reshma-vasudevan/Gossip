@@ -3,6 +3,7 @@ from threading import Thread, Lock
 import gossip.exceptions as e
 import gossip.codes as c
 from gossip.message import *
+from gossip.utils import parse_header
 
 
 ############################ API ############################
@@ -39,7 +40,7 @@ class APIServerThread(Thread):
                 s.listen(5)
                 (conn, (ip, port)) = s.accept()
                 logging.info("starting client")
-                
+
                 c = APIClientThread(conn,
                                     self.address,
                                     self.port,
@@ -48,12 +49,13 @@ class APIServerThread(Thread):
                                     self.queue,
                                     self.message_storage,
                                     self.connections)
-                
+
                 logging.info("starting client")
                 c.start()
         except:
             logging.error("API server crashed at {}:{}" \
                           .format(self.address, self.port))
+
 
 class APIClientThread(Thread):
     def __init__(self, connection, ip, port, oip, oport, queue, message_storage, connections):
@@ -70,10 +72,10 @@ class APIClientThread(Thread):
         """
         Thread.__init__(self)
         self.connection = connection
-        self.ip=ip
-        self.port=port
-        self.oip=oip
-        self.oport=oport
+        self.ip = ip
+        self.port = port
+        self.oip = oip
+        self.oport = oport
         self.queue = queue
         self.message_storage = message_storage
         self.connections = connections
@@ -84,7 +86,7 @@ class APIClientThread(Thread):
                      .format(self.ip, self.port))
         logging.info("Started API Client for {}:{}" \
                      .format(self.oip, self.oport))
-        oaddr = self.oip+":"+str(self.oport)
+        oaddr = self.oip + ":" + str(self.oport)
         with self.lock:
             self.connections[oaddr] = self.connection
         try:
@@ -96,6 +98,9 @@ class APIClientThread(Thread):
                     # if announce message, add it to shared queue
                     announce_message = AnnounceMessage(msg["data"])
                     self.queue.put(announce_message)
+
+                    # TODO send to peer layer from where we can send to all other peers
+
                 elif msg_type == c.GOSSIP_NOTIFY:
                     # if notify, add ip address of sender to subscriber list
                     message = NotifyMessage(msg["data"])
@@ -124,39 +129,13 @@ class APIClientThread(Thread):
         logging.info("API Client completed {}:{}" \
                      .format(self.oip, self.oport))
 
-def parse_header(conn):
-    """Reads from conn and parses header
-
-    :param conn: connection to receive from
-    :return: msg header, size and data in a dictonary
-    """
-    header = conn.recv(4)
-    if len(header) == 0:
-        raise e.ClientDisconnected("")
-    if len(header) < 4:
-        raise e.InvalidHeader("Length of header: {}".format(len(header)))
-
-    size = int.from_bytes(header[:2], byteorder='big')
-    msgtype = int.from_bytes(header[2:4], byteorder='big')
-    if size < 4:
-        raise e.InvalidSize("Size: {}".format(size))
-    if msgtype > c.MAX or msgtype < c.MIN:
-        raise e.InvalidMessageType("Message Type: {}".format(msgtype))
-
-    msg=conn.recv(size - 4)
-    print(msg)
-    print(size)
-    print(msgtype)
-    return {"type": msgtype, "size": size, "data": msg}
-
-
 
 ############################ P2P ############################
 
 class P2PServerThread(Thread):
     """Server thread for P2P. Accepts connections and creates new P2P client threads.
     """
-    def __init__(self, address, port):
+    def __init__(self, address, port, connections, incoming_queue, p2p_queue, bootstrapper_address, bootstrapper_port):
         """Constructor.
 
         :param address: address to bind to
@@ -165,6 +144,11 @@ class P2PServerThread(Thread):
         Thread.__init__(self)
         self.address = address
         self.port = port
+        self.connections = connections
+        self.incoming_queue = incoming_queue
+        self.p2p_queue = p2p_queue
+        self.bootstrapper_address = bootstrapper_address
+        self.bootstrapper_port = bootstrapper_port
 
     def run(self):
         logging.info("Started P2P Server at {}:{}" \
@@ -174,17 +158,26 @@ class P2PServerThread(Thread):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.address, self.port))
 
+            logging.info("Started P2P Server at {}:{}" \
+                         .format(self.address, self.port))
+            # TODO move bootstrap inside client handler as well?
+            # connect to a bootstrapper and get first list of peers
+            bootstrapper = "{}:{}".format(self.bootstrapper_address, self.bootstrapper_port)
+            created_pull_message = GossipPullMessage(self_ip=self.address, self_port=self.port).prepare_message()
+            self.p2p_queue.put(
+                {'action': P2P_ACTION_PULL_RESPONSE, 'to_address': bootstrapper, 'message': created_pull_message})
+
             while True:
                 s.listen(5)
                 (conn, (ip, port)) = s.accept()
                 logging.info("starting client")
 
                 c = P2PClientThread(conn,
-                                    self.address,
-                                    self.port,
                                     ip,
-                                    port)
-                
+                                    port,
+                                    self.connections,
+                                    self.incoming_queue)
+
                 logging.info("starting client")
                 c.start()
         except:
@@ -193,3 +186,54 @@ class P2PServerThread(Thread):
 
 
 # TODO: write P2PClientThread
+class P2PClientThread(Thread):
+    def __init__(self, connection, oip, oport, connections, incoming_queue):
+        """Constructor.
+
+        :param connection: connection to use
+        :param ip: address to bind to
+        :param port: port to bind to
+        :param oip: address of the requesting client
+        :param oport: port of the requesting client
+        :param queue: Queue to put received announce messages
+        :param message_storage: cache to store messages and subscribers
+        :param connections: dict of active connections with address as key
+        """
+        Thread.__init__(self)
+        self.connection = connection
+        self.oip = oip
+        self.oport = oport
+        self.connections = connections
+        self.incoming_queue = incoming_queue
+        self.lock = Lock()
+
+    def run(self) -> None:
+        logging.info("Started P2P Client for {}:{}" \
+                     .format(self.oip, self.oport))
+        oaddr = self.oip + ":" + str(self.oport)
+
+        with self.lock:
+            self.connections[oaddr] = self.connection
+
+        try:
+            while True:
+                msg = parse_header(self.connection)
+                msg_type = msg["type"]
+
+                self.incoming_queue.put({'msg_type': msg_type, 'msg_body': msg["data"]})
+
+        except e.ClientDisconnected as error:
+            logging.debug("Client disconnected")
+        except e.InvalidHeader as error:
+            logging.error("Invalid header: {}".format(error))
+        except e.InvalidSize as error:
+            logging.error("Invalid size: {}".format(error))
+        except e.InvalidMessageType as error:
+            logging.error("Invalid message type: {}".format(error))
+        except Exception as error:
+            logging.error("P2P Client crashed: {}".format(error))
+        with self.lock:
+            self.connections.pop(oaddr)
+        self.connection.close()
+        logging.info("P2P Client completed {}:{}" \
+                     .format(self.oip, self.oport))

@@ -8,7 +8,7 @@ class AnnounceMessageHandler(Thread):
     """
     Thread to wait on queue of announce messages and take req. action
     """
-    def __init__(self, queue, message_storage, connections):
+    def __init__(self, queue, message_storage, connections, p2p_queue):
         """
         Constructor
 
@@ -21,6 +21,7 @@ class AnnounceMessageHandler(Thread):
         self.message_storage = message_storage
         self.lock = Lock()
         self.connections = connections
+        self.p2p_queue = p2p_queue
 
     def run(self):
         while True:
@@ -35,6 +36,9 @@ class AnnounceMessageHandler(Thread):
                 for sub in self.message_storage.get_subscribers(m.data_type):
                     n = NotifThread(sub, m.data_type, msg_id, msg, self.connections)
                     n.start()
+
+                # send to peer queue from where it will be transmitted to all known peers
+                self.p2p_queue.put({'action':P2P_ACTION_SEND_ALL, 'message':m})
             self.queue.task_done()
 
 
@@ -59,6 +63,7 @@ class NotifThread(Thread):
         self.msg = msg
         self.connections = connections
 
+    # TODO check if this actually worked
     def run(self):
         new_conn = False
         if self.addr in self.connections.keys():
@@ -74,5 +79,6 @@ class NotifThread(Thread):
 
         conn.sendall(m)
 
+        # TODO dont close maybe?
         if new_conn:
             conn.close()
