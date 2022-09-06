@@ -12,5 +12,5 @@ MIN = 500
 MAX = 507
 
 # Codes to handle action types in p2p queue
-P2P_ACTION_PULL_RESPONSE = 0
+P2P_ACTION_SEND = 0
 P2P_ACTION_SEND_ALL = 1

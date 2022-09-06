@@ -10,8 +10,6 @@ class AnnounceMessage:
     Accepts the message body as input.
     """
     def __init__(self, message_body):
-        self.msg_type = GOSSIP_ANNOUNCE
-        self.message_body = message_body
         self.ttl, self.res, self.data_type = struct.unpack(">BBH", message_body[:4])
         self.data = message_body[4:]
 
@@ -22,12 +20,11 @@ class AnnounceMessage:
         return {'data_type': self.data_type, 'data': self.data, 'ttl': self.ttl}
 
     def reduce_ttl(self):
-        size = 8 + len(self.data)
         modified_ttl = self.ttl
         # If ttl is 0, hops are unlimited
         if self.ttl != 0:
             modified_ttl -= 1
-        updated_message = struct.pack(">HHBBH", size, self.msg_type, modified_ttl, self.res, self.data_type)
+        updated_message = struct.pack(">BBH", modified_ttl, self.res, self.data_type)
         updated_message += self.data
 
         return updated_message
@@ -113,8 +110,7 @@ class GossipPullResponseMessage:
     """
     def __init__(self, peer_list, message_body=None):
         self.peer_list = peer_list
-        if peer_list:
-            self.msg_type = GOSSIP_P2P_PULL_RESPONSE
+        self.msg_type = GOSSIP_P2P_PULL_RESPONSE
         if message_body:
             self.message = message_body
 
@@ -131,13 +127,15 @@ class GossipPullResponseMessage:
 
     def update_peer_list(self):
         peer_count = int.from_bytes(self.message[0:2], byteorder='big')
+        obtained_peers = []
         for i in range(peer_count):
             ip1, ip2, ip3, ip4, port = struct.unpack(">BBBBH", self.message[2+6*i: 2+6*(i+1)])
             peer = "{}.{}.{}.{}:{}".format(ip1, ip2, ip3, ip4, int(port))
+            obtained_peers.append(peer)
             if peer not in self.peer_list:
                 self.peer_list.append(peer)
         logging.info("New peer list: {}".format(self.peer_list))
-        return self.peer_list
+        return obtained_peers
 
 
 # TODO change documentation for push to send just your own id
@@ -168,7 +166,7 @@ class GossipPushMessage:
         ip1, ip2, ip3, ip4, port = struct.unpack(">BBBBH", self.message)
         received_peer = "{}.{}.{}.{}:{}".format(ip1, ip2, ip3, ip4, port)
         self.peer_list.append(received_peer)
-
+        logging.info("New peer list: {}".format(self.peer_list))
         return received_peer
 
 
@@ -179,23 +177,30 @@ class GossipSendContentMessage:
     """
     def __init__(self, msg_to_send=None, message_body=None):
         if msg_to_send:
-            self.msg_type = GOSSIP_P2P_SEND_CONTENT
-            self.size = 4 + len(msg_to_send)
+            self.outer_msg_type = GOSSIP_P2P_SEND_CONTENT
+            self.outer_size = 4 + len(msg_to_send)
             self.msg_body = msg_to_send
 
         if message_body:
-            self.message = message_body
-            self.size, self.msg_type = struct.unpack(">HH", message_body[0:2])
-            self.msg_body = message_body[2:]
+            self.inner_size, self.inner_msg_type = struct.unpack(">HH", message_body[0:4])
+            self.msg_body = message_body[4:]
 
-    def get_content_type(self):
-        return self.msg_type
+    def get_outer_content_type(self):
+        return self.outer_msg_type
+
+    def get_inner_content_type(self):
+        return self.inner_msg_type
 
     def get_content_body(self):
         return self.msg_body
 
-    def prepare_message(self):
-        message = struct.pack(">HH", self.size, self.msg_type)
+    def prepare_message(self, inner_msg_type=None):
+        if inner_msg_type:
+            inner_msg_size = 4 + len(self.msg_body)
+            self.outer_size += 4
+            message = struct.pack(">HHHH", self.outer_size, self.outer_msg_type, inner_msg_size, inner_msg_type)
+        else:
+            message = struct.pack(">HH", self.outer_size, self.outer_msg_type)
         message += self.msg_body
-
+        logging.info("Created arbitrary msg: {}".format(message))
         return message

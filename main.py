@@ -2,7 +2,7 @@ import sys, logging, os
 from gossip.config_parser import parse_config
 from gossip.server import APIServerThread, P2PServerThread
 import queue
-from gossip.message_handler import AnnounceMessageHandler
+from gossip.api_message_handler import AnnounceMessageHandler
 from gossip.message_storage import MessageStorage
 from gossip.p2p_message_handler import P2PMessageHandler
 from gossip.p2p_client_handler import P2PClientHandler
@@ -59,8 +59,7 @@ def main():
 
     apiserverthread.start()
 
-
-    p2p_message_handler = P2PMessageHandler(p2p_queue, p2p_connections, peer_list, incoming_queue)
+    p2p_message_handler = P2PMessageHandler(p2p_queue, p2p_connections, peer_list, incoming_queue, config['degree'])
     p2p_message_handler.start()
 
     logging.debug('Starting P2P server thread')
@@ -69,12 +68,12 @@ def main():
                                    config['p2p_address']['port'],
                                    p2p_connections,
                                    incoming_queue,
-                                   p2p_queue,
-                                   config['bootstrapper']['address'],
-                                   config['bootstrapper']['port'])
+                                   p2p_queue)
     p2pserverthread.start()
 
-    p2p_client_handler = P2PClientHandler(incoming_queue, peer_list, announce_queue, p2p_queue)
+    p2p_client_handler = P2PClientHandler(incoming_queue, peer_list, announce_queue, p2p_queue, config['p2p_address']['address'],
+                                          config['p2p_address']['port'], p2p_connections,
+                                          config['bootstrapper']['address'],config['bootstrapper']['port'])
     p2p_client_handler.start()
 
     # join the threads

@@ -1,4 +1,6 @@
-# Handles received announce messages and creates threads to send corresp. notification messages
+# Handles received announce messages at API layer and creates threads to send corresp. notification messages
+import logging
+
 from gossip.message import *
 from threading import Thread, Lock
 import socket
@@ -26,7 +28,8 @@ class AnnounceMessageHandler(Thread):
     def run(self):
         while True:
             # Processing one announce message from the queue
-            m = self.queue.get()
+            r = self.queue.get()
+            m = AnnounceMessage(r['message'])
 
             with self.lock:
                 msg_id = self.message_storage.add_data(m.data_type, m.data, m.ttl)
@@ -37,8 +40,10 @@ class AnnounceMessageHandler(Thread):
                     n = NotifThread(sub, m.data_type, msg_id, msg, self.connections)
                     n.start()
 
-                # send to peer queue from where it will be transmitted to all known peers
-                self.p2p_queue.put({'action':P2P_ACTION_SEND_ALL, 'message':m})
+                if r['resend']:
+                    # send to peer queue from where it will be transmitted to all known peers
+                    logging.info("Sending to all peers")
+                    self.p2p_queue.put({'action':P2P_ACTION_SEND_ALL, 'message':r['message']})
             self.queue.task_done()
 
 
