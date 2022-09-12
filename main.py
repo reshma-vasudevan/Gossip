@@ -5,7 +5,7 @@ import queue
 from gossip.api_message_handler import AnnounceMessageHandler
 from gossip.message_storage import MessageStorage
 from gossip.p2p_message_handler import P2PMessageHandler
-from gossip.p2p_client_handler import P2PClientHandler
+from gossip.p2p_handler import P2PHandler
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -35,7 +35,7 @@ def main():
     config=parse_config(config_path)
 
     # initializing objects
-    message_storage = MessageStorage()
+    message_storage = MessageStorage(config['cache_size'])
     announce_queue = queue.Queue()
     p2p_queue = queue.Queue()
     incoming_queue = queue.Queue()
@@ -53,9 +53,9 @@ def main():
     apiserverthread = APIServerThread(
                                    config['api_address']['address'],
                                    config['api_address']['port'],
+                                   api_connections,
                                    announce_queue,
-                                   message_storage,
-                                   api_connections)
+                                   message_storage)
 
     apiserverthread.start()
 
@@ -70,24 +70,26 @@ def main():
                                    incoming_queue,
                                    p2p_queue)
     p2pserverthread.start()
-
-    p2p_client_handler = P2PClientHandler(incoming_queue, peer_list, announce_queue, p2p_queue, config['p2p_address']['address'],
-                                          config['p2p_address']['port'], p2p_connections,
-                                          config['bootstrapper']['address'],config['bootstrapper']['port'])
-    p2p_client_handler.start()
+    p2p_handler = P2PHandler(incoming_queue, peer_list, announce_queue, p2p_queue, p2p_connections,
+                             config['p2p_address']['address'], config['p2p_address']['port'],
+                             config['bootstrapper']['address'], config['bootstrapper']['port'],
+                             config['degree'])
+    p2p_handler.start()
 
     # join the threads
+    try:
+        logging.debug('Joining API server thread')
+        apiserverthread.join()
+        announce_queue.join()
 
-    logging.debug('Joining API server thread')
-    apiserverthread.join()
-    announce_queue.join()
+        logging.debug('Joining P2P server thread')
+        p2pserverthread.join()
+        p2p_queue.join()
+        incoming_queue.join()
+    except KeyboardInterrupt as e:
+        logging.error("Received keyboard interrupt, stopping server")
 
-    logging.debug('Joining P2P server thread')
-    p2pserverthread.join()
-    p2p_queue.join()
-    incoming_queue.join()
-
-    logging.debug('Exiting Gossip')
+    sys.exit("Exiting")
 
 
 if __name__ == '__main__':

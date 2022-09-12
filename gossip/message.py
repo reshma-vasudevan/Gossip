@@ -83,6 +83,11 @@ class GossipPullMessage:
         Class to handle either receiving of a pull message or sending a pull message
     """
     def __init__(self, self_ip=None, self_port=None, message_body=None):
+        """
+        :param self_ip: to send a pull message, use this parameter for own ip
+        :param self_port: to send a pull message, use this parameter for own port
+        :param message_body: if pull message was received, use this parameter
+        """
         if self_ip:
             self.msg_type = GOSSIP_P2P_PULL
             self.ip = self_ip
@@ -92,11 +97,19 @@ class GossipPullMessage:
             self.message = message_body
 
     def prepare_message(self):
+        """
+        Pack a pull message with our own address
+        :return: packed message
+        """
         ip1, ip2, ip3, ip4 = (int(x) for x in self.ip.split("."))
         message = struct.pack(">HHBBBBH", self.size, self.msg_type, ip1, ip2, ip3, ip4, self.port)
         return message
 
     def get_requester_address(self):
+        """
+        Extract peer who sent pull message
+        :return: extracted peer address
+        """
         ip1, ip2, ip3, ip4, port = struct.unpack(">BBBBH", self.message)
         requester_addr = "{}.{}.{}.{}:{}".format(ip1, ip2, ip3, ip4, port)
 
@@ -109,12 +122,20 @@ class GossipPullResponseMessage:
         to send a Response to a Pull message received
     """
     def __init__(self, peer_list, message_body=None):
+        """
+        :param peer_list: known list of peers
+        :param message_body: if pull response message was received, use this parameter
+        """
         self.peer_list = peer_list
         self.msg_type = GOSSIP_P2P_PULL_RESPONSE
         if message_body:
             self.message = message_body
 
     def prepare_message(self):
+        """
+        Pack a pull response message with our known list of peers
+        :return: packed message
+        """
         peer_count = len(self.peer_list)
         size = 4 + 2 + 6*peer_count
         message = struct.pack(">HHH", size, self.msg_type, peer_count)
@@ -122,10 +143,13 @@ class GossipPullResponseMessage:
             ip, port = peer.split(":")
             ip1, ip2, ip3, ip4 = (int(x) for x in ip.split("."))
             message += struct.pack(">BBBBH", ip1, ip2, ip3, ip4, int(port))
-
         return message
 
     def update_peer_list(self):
+        """
+        Extract peers from received pull response message and add them to our known peer list
+        :return: peers received from this response message
+        """
         peer_count = int.from_bytes(self.message[0:2], byteorder='big')
         obtained_peers = []
         for i in range(peer_count):
@@ -138,15 +162,18 @@ class GossipPullResponseMessage:
         return obtained_peers
 
 
-# TODO change documentation for push to send just your own id
-# TODO think about having pull request and push message as a single one
-# TODO merge with impl of Pull message?
 class GossipPushMessage:
     """
         Class to handle received messages which are Pushed and
         also to send Push messages with our ip
     """
     def __init__(self, peer_list=None, self_ip=None, self_port=None, message_body=None):
+        """
+        :param peer_list: if pull message was received, use this parameter to add received peer address
+        :param self_ip: to send a pull message, use this parameter for own ip
+        :param self_port: to send a pull message, use this parameter for own port
+        :param message_body: if pull message was received, use this parameter
+        """
         if self_ip:
             self.msg_type = GOSSIP_P2P_PUSH
             self.ip = self_ip
@@ -157,12 +184,19 @@ class GossipPushMessage:
             self.message = message_body
 
     def prepare_message(self):
+        """
+        Pack a push message with our own address
+        :return: packed message
+        """
         ip1, ip2, ip3, ip4 = (int(x) for x in self.ip.split("."))
         message = struct.pack(">HHBBBBH", self.size, self.msg_type, ip1, ip2, ip3, ip4, self.port)
-
         return message
 
     def add_received_peer(self):
+        """
+        Add pushed peer from received message to known list of peers
+        :return: peer received in this message
+        """
         ip1, ip2, ip3, ip4, port = struct.unpack(">BBBBH", self.message)
         received_peer = "{}.{}.{}.{}:{}".format(ip1, ip2, ip3, ip4, port)
         self.peer_list.append(received_peer)
@@ -176,7 +210,12 @@ class GossipSendContentMessage:
         to send arbitrary content
     """
     def __init__(self, msg_to_send=None, message_body=None):
+        """
+        :param msg_to_send: to send message, use this parameter
+        :param message_body: if message was received, use this parameter
+        """
         if msg_to_send:
+            # pack outer type as p2p message type GOSSIP_P2P_SEND_CONTENT
             self.outer_msg_type = GOSSIP_P2P_SEND_CONTENT
             self.outer_size = 4 + len(msg_to_send)
             self.msg_body = msg_to_send
@@ -195,6 +234,11 @@ class GossipSendContentMessage:
         return self.msg_body
 
     def prepare_message(self, inner_msg_type=None):
+        """
+        Pack an arbitrary message
+        :param inner_msg_type: message type of data to be sent in this packet
+        :return: packed message
+        """
         if inner_msg_type:
             inner_msg_size = 4 + len(self.msg_body)
             self.outer_size += 4

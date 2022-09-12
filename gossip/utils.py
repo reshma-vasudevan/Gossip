@@ -22,7 +22,4 @@ def parse_header(conn):
         raise e.InvalidMessageType("Message Type: {}".format(msgtype))
 
     msg=conn.recv(size - 4)
-    print(msg)
-    print(size)
-    print(msgtype)
     return {"type": msgtype, "size": size, "data": msg}

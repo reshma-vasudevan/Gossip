@@ -14,17 +14,20 @@ class MessageStorage:
             dict of dict, index: message id, value of format: {"message":message, "ttl": ttl, "valid":0}
         subscribers: Stores list of subscribers to given data_type
             dict of list, index: data_type, value: list of subscribers
+        cache_size: Maximum number of messages that can be stored
     """
-    def __init__(self):
+    def __init__(self, cache_size):
         self.data_types = defaultdict(list)
         self.messages = {}
         self.subscribers = defaultdict(list)
+        self.cache_size = cache_size
 
     def add_data(self, data_type, data, ttl):
-        msg_id = self.get_random_msg_id()
-        self.data_types[data_type].append(msg_id)
-        self.messages[msg_id] = {"message":data, "ttl": ttl, "valid":0}
-        return msg_id
+        if len(self.messages) < self.cache_size:
+            msg_id = self.get_random_msg_id()
+            self.data_types[data_type].append(msg_id)
+            self.messages[msg_id] = {"message":data, "ttl": ttl, "valid":0}
+            return msg_id
 
     def add_subscriber(self, data_type, subscriber):
         self.subscribers[data_type].append(subscriber)

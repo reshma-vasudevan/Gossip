@@ -68,7 +68,6 @@ class NotifThread(Thread):
         self.msg = msg
         self.connections = connections
 
-    # TODO check if this actually worked
     def run(self):
         new_conn = False
         if self.addr in self.connections.keys():
@@ -84,6 +83,5 @@ class NotifThread(Thread):
 
         conn.sendall(m)
 
-        # TODO dont close maybe?
         if new_conn:
             conn.close()

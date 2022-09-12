@@ -11,15 +11,14 @@ from gossip.utils import parse_header
 class APIServerThread(Thread):
     """Server thread for the API. Accepts connections and creates new API client threads.
     """
-    def __init__(self, address, port, queue, message_storage, connections):
+    def __init__(self, address, port, connections, queue, message_storage):
         """Constructor.
 
         :param address: address to bind to
         :param port: port to bind to
-        :param type: server type, either API or P2P
+        :param connections: dict of active connections with address as key
         :param queue: Queue to put received announce messages
         :param message_storage: cache to store messages and subscribers
-        :param connections: dict of active connections with address as key
         """
         Thread.__init__(self)
         self.address = address
@@ -50,12 +49,16 @@ class APIServerThread(Thread):
                                     self.connections)
 
                 c.start()
+            s.close()
         except:
             logging.error("API server crashed at {}:{}" \
                           .format(self.address, self.port))
 
 
 class APIClientThread(Thread):
+    """
+        Client thread to handle a client that connects to API server
+    """
     def __init__(self, connection, ip, port, oip, oport, queue, message_storage, connections):
         """Constructor.
 
@@ -109,7 +112,7 @@ class APIClientThread(Thread):
                             self.message_storage.make_invalid(message.msg_id)
 
         except e.ClientDisconnected as error:
-            logging.debug("Client disconnected")
+            logging.debug("Client disconnected: {}".format(error))
         except e.InvalidHeader as error:
             logging.error("Invalid header: {}".format(error))
         except e.InvalidSize as error:
@@ -135,6 +138,9 @@ class P2PServerThread(Thread):
 
         :param address: address to bind to
         :param port: port to bind to
+        :param connections: dict of active connections with address as key
+        :param incoming_queue: queue to put messages received from other peers
+        :param p2p_queue: queue to put messages for internal processing
         """
         Thread.__init__(self)
         self.address = address
@@ -172,17 +178,17 @@ class P2PServerThread(Thread):
 
 
 class P2PClientThread(Thread):
+    """
+        Client thread to handle a client that connects to P2P server
+    """
     def __init__(self, connection, oip, oport, connections, incoming_queue):
         """Constructor.
 
         :param connection: connection to use
-        :param ip: address to bind to
-        :param port: port to bind to
         :param oip: address of the requesting client
         :param oport: port of the requesting client
-        :param queue: Queue to put received announce messages
-        :param message_storage: cache to store messages and subscribers
         :param connections: dict of active connections with address as key
+        :param incoming_queue: queue to put messages received from other peers
         """
         Thread.__init__(self)
         self.connection = connection
@@ -205,6 +211,7 @@ class P2PClientThread(Thread):
                 msg = parse_header(self.connection)
                 msg_type = msg["type"]
 
+                # add p2p message received on the connection to shared queue
                 self.incoming_queue.put({'sender': oaddr, 'msg_type': msg_type, 'msg_body': msg["data"]})
 
         except e.ClientDisconnected as error:
@@ -222,3 +229,4 @@ class P2PClientThread(Thread):
         self.connection.close()
         logging.info("P2P Client completed {}:{}" \
                      .format(self.oip, self.oport))
+        self.incoming_queue.put({'sender':oaddr, 'msg_type': c.P2P_CONNECTION_CLOSED, 'msg_body': None})

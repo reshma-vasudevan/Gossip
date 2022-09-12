@@ -11,6 +11,7 @@ GOSSIP_P2P_SEND_CONTENT = 507
 MIN = 500
 MAX = 507
 
-# Codes to handle action types in p2p queue
+# Codes to handle actions for p2p processing
 P2P_ACTION_SEND = 0
 P2P_ACTION_SEND_ALL = 1
+P2P_CONNECTION_CLOSED = 2

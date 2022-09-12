@@ -5,7 +5,7 @@ from gossip.message_storage import MessageStorage
 
 class TestMessageStorage(unittest.TestCase):
     def setUp(self) -> None:
-        self.message_storage = MessageStorage()
+        self.message_storage = MessageStorage(cache_size=10)
 
     def test_add_new_data(self):
         msg_id1 = self.message_storage.add_data("conn", "Connection 1 found", 2)
